@@ -1,14 +1,28 @@
 from threading import Thread
 import cv2
 import time
+import datetime
+from datetime import timedelta
+import RPi.GPIO as GPIO
+from gpiozero import MotionSensor
+import gpiozero as gz
+
+#for video timing in start_recording()
+duration = 30 #in seconds. This is not exact.
+end_time= datetime.datetime.now() + datetime.timedelta(seconds=duration)
+
+#set pin that PIR is connected to
+pir = MotionSensor(4)
+
 
 class VideoWriterWidget(object):
-    def __init__(self, video_file_name, src=0):
+    def __init__(self, video_file_name, src=0, speed=1):
         # Create a VideoCapture object
         self.frame_name = str(src) # if using webcams, else just use src as it is.
         self.video_file = video_file_name
         self.video_file_name = video_file_name + '.avi'
         self.capture = cv2.VideoCapture(src)
+        self.speed = speed
 
         # Default resolutions of the frame are obtained (system dependent)
         self.frame_width = int(self.capture.get(3))
@@ -16,7 +30,7 @@ class VideoWriterWidget(object):
 
         # Set up codec and output video settings
         self.codec = cv2.VideoWriter_fourcc('M','J','P','G')
-        self.output_video = cv2.VideoWriter(self.video_file_name, self.codec, 30, (self.frame_width, self.frame_height))
+        self.output_video = cv2.VideoWriter(self.video_file_name, self.codec, self.speed, (self.frame_width, self.frame_height)) #number after self.codec was 30
 
         # Start the thread to read frames from the video stream
         self.thread = Thread(target=self.update, args=())
@@ -35,8 +49,8 @@ class VideoWriterWidget(object):
 
     def show_frame(self):
         # Display frames in main program
-        if self.status:
-            cv2.imshow(self.frame_name, self.frame)
+        #if self.status:
+            #cv2.imshow(self.frame_name, self.frame)
 
         # Press Q on keyboard to stop recording
         key = cv2.waitKey(1)
@@ -53,22 +67,29 @@ class VideoWriterWidget(object):
     def start_recording(self):
         # Create another thread to show/save frames
         def start_recording_thread():
-            while True:
+            while datetime.datetime.now() < end_time:#this used to be while True
                 try:
                     self.show_frame()
                     self.save_frame()
                 except AttributeError:
                     pass
+            print("Record Complete")
+
         self.recording_thread = Thread(target=start_recording_thread, args=())
         self.recording_thread.daemon = True
         self.recording_thread.start()
+        
 
 #camera directries change randomly
 if __name__ == '__main__':
-    src1 = '/dev/video0'
-    video_writer_widget1 = VideoWriterWidget('Camera 1', src1)
-    src2 = '/dev/video1'
-    video_writer_widget2 = VideoWriterWidget('Camera 2', src2)
+    pir.wait_for_motion()
+    src2 = '/dev/video0'
+    videofileth = "VideoThermal-" + datetime.datetime.now().strftime("%d.%m.%Y-%H.%M.%S")
+    video_writer_widget2 = VideoWriterWidget(videofileth, src2, 100)
+    src1 = '/dev/video2'
+    videofilehd = "VideoHD-" + datetime.datetime.now().strftime("%d.%m.%Y-%H.%M.%S")
+    video_writer_widget1 = VideoWriterWidget(videofilehd, src1, 25)
+    
     #src3 = 'Your link3'
     #video_writer_widget3 = VideoWriterWidget('Camera 3', src3)
 
